@@ -7,8 +7,7 @@ I feel comfortable enough to use it myself, but you probably shouldn't unless yo
 
 ## Requirements
 
-- Python 3.6 or higher
-- No external dependencies
+- Python 3, no external dependencies
 
 ## Installation
 
