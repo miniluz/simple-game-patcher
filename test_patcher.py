@@ -630,5 +630,127 @@ def test_state_deleted_between_operations(test_env):
     assert (game_target / "file1.txt").read_text() == "patched content 1"
 
 
+def test_init_creates_template_config(tmp_path):
+    """Test 21: Init command creates template config.json with example"""
+    config_dir = tmp_path / "config"
+    script = Path(__file__).parent / "simple-game-patcher.py"
+
+    result = subprocess.run(
+        ["python3", str(script), "--config-dir", str(config_dir), "init"],
+        capture_output=True,
+        text=True
+    )
+
+    assert result.returncode == 0
+    assert "Successfully initialized" in result.stdout
+
+    assert (config_dir / "config.json").exists()
+    assert (config_dir / "patches" / "example-game").exists()
+    assert (config_dir / "patches" / "example-game").is_dir()
+
+    config = json.loads((config_dir / "config.json").read_text())
+    assert "games" in config
+    assert "example-game" in config["games"]
+    assert config["games"]["example-game"]["target"] == "/path/to/game/directory"
+    assert "backup" in config["games"]["example-game"]
+
+
+def test_init_overwrites_existing_config(tmp_path):
+    """Test 22: Init can overwrite existing config.json"""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True)
+    config_file = config_dir / "config.json"
+    script = Path(__file__).parent / "simple-game-patcher.py"
+
+    config_file.write_text('{"games": {"oldgame": {"target": "/old/path", "backup": "/old/backup"}}}')
+
+    result = subprocess.run(
+        ["python3", str(script), "--config-dir", str(config_dir), "init"],
+        input="y\n",
+        capture_output=True,
+        text=True
+    )
+    assert result.returncode == 0
+    assert "already exists" in result.stdout
+
+    config = json.loads(config_file.read_text())
+    assert "example-game" in config["games"]
+    assert "oldgame" not in config["games"]
+
+
+def test_init_abort_overwrite(tmp_path):
+    """Test 23: Init aborts when user declines to overwrite"""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True)
+    config_file = config_dir / "config.json"
+    script = Path(__file__).parent / "simple-game-patcher.py"
+
+    original_config = {"games": {"oldgame": {"target": "/old/path", "backup": "/old/backup"}}}
+    config_file.write_text(json.dumps(original_config))
+
+    result = subprocess.run(
+        ["python3", str(script), "--config-dir", str(config_dir), "init"],
+        input="n\n",
+        capture_output=True,
+        text=True
+    )
+    assert result.returncode == 0
+    assert "cancelled" in result.stdout
+
+    config = json.loads(config_file.read_text())
+    assert config == original_config
+
+
+def test_init_then_apply_patches_integration(tmp_path):
+    """Test 24: Init, manual config edit, then apply patches (full integration)"""
+    config_dir = tmp_path / "config"
+    game_target = tmp_path / "game"
+    game_target.mkdir(parents=True)
+    script = Path(__file__).parent / "simple-game-patcher.py"
+
+    (game_target / "file1.txt").write_text("original content")
+
+    result = subprocess.run(
+        ["python3", str(script), "--config-dir", str(config_dir), "init"],
+        capture_output=True,
+        text=True
+    )
+    assert result.returncode == 0
+
+    config_file = config_dir / "config.json"
+    config = json.loads(config_file.read_text())
+    config["games"]["testgame"] = {
+        "target": str(game_target),
+        "backup": str(config_dir / "backups" / "testgame")
+    }
+    del config["games"]["example-game"]
+    config_file.write_text(json.dumps(config, indent=2))
+
+    patches_dir = config_dir / "patches" / "testgame"
+    patches_dir.mkdir(parents=True, exist_ok=True)
+    (patches_dir / "file1.txt").write_text("patched content")
+    (patches_dir / "newfile.txt").write_text("new content")
+
+    result = subprocess.run(
+        ["python3", str(script), "--config-dir", str(config_dir), "apply", "testgame"],
+        capture_output=True,
+        text=True
+    )
+    assert result.returncode == 0
+
+    assert (game_target / "file1.txt").read_text() == "patched content"
+    assert (game_target / "newfile.txt").read_text() == "new content"
+
+    result = subprocess.run(
+        ["python3", str(script), "--config-dir", str(config_dir), "revert", "testgame"],
+        capture_output=True,
+        text=True
+    )
+    assert result.returncode == 0
+
+    assert (game_target / "file1.txt").read_text() == "original content"
+    assert not (game_target / "newfile.txt").exists()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

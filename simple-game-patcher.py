@@ -3,6 +3,7 @@
 Game Patcher - Manage file overlays for game modifications
 
 Usage:
+    ./patcher.py init
     ./patcher.py apply <game>
     ./patcher.py revert <game>
     ./patcher.py status <game>
@@ -373,15 +374,58 @@ class GamePatcher:
         )
 
 
+def init_config(config_dir: Path):
+    """Initialize configuration directory with template config.json and patches structure"""
+    config_file = config_dir / "config.json"
+    patches_dir = config_dir / "patches"
+
+    # Check if config already exists
+    if config_file.exists():
+        print(f"Config file already exists: {config_file}")
+        choice = input("\nOverwrite existing configuration? [y/N]: ").lower().strip()
+        if choice not in ("y", "yes"):
+            print("Initialization cancelled")
+            return
+
+    # Create config directory if it doesn't exist
+    config_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create template config with example
+    config_data = {
+        "games": {
+            "example-game": {
+                "target": "/path/to/game/directory",
+                "backup": str((config_dir / "backups" / "example-game").resolve())
+            }
+        }
+    }
+
+    # Save config
+    with open(config_file, "w") as f:
+        json.dump(config_data, f, indent=2)
+
+    # Create patches directory structure
+    example_patches_dir = patches_dir / "example-game"
+    example_patches_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"\nSuccessfully initialized patcher configuration:")
+    print(f"  Config: {config_file}")
+    print(f"  Patches: {patches_dir}")
+    print(f"\nNext steps:")
+    print(f"  1. Edit {config_file} to configure your game(s)")
+    print(f"  2. Add patch files to {patches_dir}/<game-name>/")
+    print(f"  3. Run 'apply' command to patch your game")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Manage file overlays for game modifications",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "command", choices=["apply", "revert", "status"], help="Command to execute"
+        "command", choices=["init", "apply", "revert", "status"], help="Command to execute"
     )
-    parser.add_argument("game", help="Game name from config")
+    parser.add_argument("game", nargs="?", help="Game name (not required for init)")
     parser.add_argument(
         "--config-dir",
         type=Path,
@@ -392,14 +436,19 @@ def main():
     args = parser.parse_args()
 
     try:
-        patcher = GamePatcher(args.game, args.config_dir)
+        if args.command == "init":
+            init_config(args.config_dir)
+        else:
+            if not args.game:
+                parser.error(f"{args.command} command requires game name")
+            patcher = GamePatcher(args.game, args.config_dir)
 
-        if args.command == "apply":
-            patcher.apply()
-        elif args.command == "revert":
-            patcher.revert()
-        elif args.command == "status":
-            patcher.status()
+            if args.command == "apply":
+                patcher.apply()
+            elif args.command == "revert":
+                patcher.revert()
+            elif args.command == "status":
+                patcher.status()
 
     except PatcherError as e:
         print(f"Error: {e}", file=sys.stderr)
