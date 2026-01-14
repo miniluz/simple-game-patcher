@@ -2,6 +2,9 @@
 
 A file-based patching system for managing game modifications. Applies patch files to game directories while maintaining backups for safe reversion.
 
+This was coded with AI almost exclusively, and is a personal project. It's tested, but the tests were written by AI.
+I feel comfortable enough to use it myself, but you probably shouldn't unless you know how to debug stuff yourself.
+
 ## Requirements
 
 - Python 3.6 or higher
