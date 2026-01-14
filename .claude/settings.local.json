@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(nix develop:*)",
-      "Bash(python3 -m pytest:*)"
-    ]
-  }
-}
