@@ -220,6 +220,7 @@ class GamePatcher:
                     else None
                 )
 
+                force_rebackup = False
                 if conflict:
                     action = self._handle_conflict(relative_path, conflict)
                     if action == "abort":
@@ -227,6 +228,8 @@ class GamePatcher:
                         return
                     elif action == "force":
                         needs_backup = False  # Don't preserve the modified file
+                    elif action == "re-backup":
+                        force_rebackup = True  # Force a new backup of the modified file
 
                 operations.append(
                     {
@@ -234,6 +237,7 @@ class GamePatcher:
                         "relative_path": relative_path,
                         "target_file": target_file,
                         "needs_backup": needs_backup,
+                        "force_rebackup": force_rebackup,
                     }
                 )
 
@@ -247,6 +251,7 @@ class GamePatcher:
                     relative_path = op["relative_path"]
                     target_file = op["target_file"]
                     needs_backup = op["needs_backup"]
+                    force_rebackup = op["force_rebackup"]
 
                     # Backup if needed
                     original_checksum = None
@@ -254,6 +259,7 @@ class GamePatcher:
                         if (
                             relative_path not in state
                             or not state[relative_path].has_backup
+                            or force_rebackup
                         ):
                             self._backup_file(target_file, relative_path)
                             original_checksum = self._compute_checksum(target_file)
