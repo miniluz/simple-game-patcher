@@ -178,14 +178,15 @@ class GamePatcher:
         backup_file.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(target_file, backup_file)
 
-    def _restore_file(self, relative_path: str):
+    def _restore_file(self, relative_path: str, delete_backup: bool = True):
         """Restore a file from backup"""
         backup_file = self.config.backup / relative_path
         target_file = self.config.target / relative_path
 
         if backup_file.exists():
             shutil.copy2(backup_file, target_file)
-            backup_file.unlink()
+            if delete_backup:
+                backup_file.unlink()
         else:
             # File didn't exist originally, remove it
             if target_file.exists():
@@ -255,7 +256,10 @@ class GamePatcher:
                             or not state[relative_path].has_backup
                         ):
                             self._backup_file(target_file, relative_path)
-                        original_checksum = self._compute_checksum(target_file)
+                            original_checksum = self._compute_checksum(target_file)
+                        else:
+                            # Preserve original checksum from existing backup
+                            original_checksum = state[relative_path].original_checksum
 
                     # Copy patch file
                     target_file.parent.mkdir(parents=True, exist_ok=True)
@@ -276,15 +280,19 @@ class GamePatcher:
                 print(f"\nSuccessfully patched {len(patched_files)} file(s)")
 
             except Exception as e:
-                # Rollback
+                # Rollback - restore files but preserve backups and old state
                 print(f"\nError during patching: {e}")
                 print("Rolling back changes...")
 
                 for relative_path in patched_files:
                     try:
-                        self._restore_file(relative_path)
+                        # Restore file but don't delete backup (preserve for future operations)
+                        self._restore_file(relative_path, delete_backup=False)
                     except Exception as rollback_error:
                         print(f"  Error rolling back {relative_path}: {rollback_error}")
+
+                # Restore original state
+                self._save_state(state)
 
                 raise PatcherError("Patching failed and was rolled back")
 
